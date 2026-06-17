@@ -11,7 +11,6 @@ def main():
     )
     parser.add_argument("config", help="containers.toml")
     parser.add_argument("output", help="output directory")
-    parser.add_argument("table", type=str, help="nftables table name")
     args = parser.parse_args()
 
     cfg_path = Path(args.config).resolve()
