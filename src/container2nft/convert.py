@@ -4,12 +4,14 @@ from typing import cast
 from container2nft.config import NatService, load_config
 
 
-def convert(cfg_path: Path, out_root: Path, table_name: str):
+def convert(cfg_path: Path, out_root: Path):
     data = load_config(cfg_path)
 
     nft_path = cfg_path.parent / "podman.nft"
 
-    nft_rules: list[str] = []
+    prerouting_rules: list[str] = []
+    output_rules: list[str] = []
+
     mapping: list[str] = []
 
     used_ips: dict[str, str] = {}
@@ -58,19 +60,13 @@ def convert(cfg_path: Path, out_root: Path, table_name: str):
 
                 mapping.append(f"  {proto:<3} {host}:{listen} -> {svc['ip']}:{target}")
 
-                if host in ("0.0.0.0", "::"):
-                    nft_rules.append(
-                        f"add rule ip {table_name} podman_prerouting "
-                        f"{proto} dport {listen} "
-                        f"dnat to {svc['ip']}:{target}"
-                    )
+                rule = f"{proto} dport {listen} dnat to {svc['ip']}:{target}"
+                if host == "127.0.0.1":
+                    output_rules.append(rule)
+                elif host in ("0.0.0.0", "::"):
+                    prerouting_rules.append(rule)
                 else:
-                    nft_rules.append(
-                        f"add rule ip {table_name} podman_prerouting "
-                        f"ip daddr {host} "
-                        f"{proto} dport {listen} "
-                        f"dnat to {svc['ip']}:{target}"
-                    )
+                    prerouting_rules.append(f"ip daddr {host} {rule}")
 
             mapping.append("")
 
@@ -78,17 +74,36 @@ def convert(cfg_path: Path, out_root: Path, table_name: str):
             env.sort()
             (project_dir / ".env").write_text("\n".join(env) + "\n", encoding="utf-8")
 
-    if nft_rules:
-        nft = "\n".join(
-            [
-                f"flush chain ip {table_name} podman_prerouting",
-                *nft_rules,
-                "",
-            ]
-        )
-        nft_path.write_text(nft, encoding="utf-8")
+    if prerouting_rules or output_rules:
+        nft = ["table ip podman_table {"]
+        if prerouting_rules:
+            nft.extend(
+                [
+                    "    chain prerouting {",
+                    "        type nat hook prerouting priority dstnat; policy accept;",
+                ]
+            )
+            nft.extend(f"        {r}" for r in prerouting_rules)
+            nft.append("    }")
+
+        if output_rules:
+            nft.extend(
+                [
+                    "",
+                    "    chain output {",
+                    "        type nat hook output priority dstnat; policy accept;",
+                ]
+            )
+            nft.extend(f"        {r}" for r in output_rules)
+            nft.append("    }")
+
+        nft.extend(["}", ""])
+
+        nft_path.write_text("\n".join(nft), encoding="utf-8")
 
     if mapping:
         print("\n".join(mapping))
 
-    print(f"\nGenerated {len(used_ips)} services, {len(nft_rules)} nft rules.")
+    print(
+        f"\nGenerated {len(used_ips)} services, {len(prerouting_rules) + len(output_rules)} nft rules."
+    )
