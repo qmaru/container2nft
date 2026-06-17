@@ -1,0 +1,23 @@
+[project]
+name = "container2nft"
+version = "0.1.0"
+description = "Generate container nft rules from configuration"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = []
+
+[project.urls]
+"Source" = "https://github.com/qmaru/container2nft.git"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.pytest.ini_options]
+asyncio_default_fixture_loop_scope = "function"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/container2nft"]
+
+[project.scripts]
+c2nft = "container2nft.main:main"
