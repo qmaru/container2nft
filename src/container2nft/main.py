@@ -11,10 +11,12 @@ def main():
     )
     parser.add_argument("config", help="containers.toml")
     parser.add_argument("output", help="output directory")
+    parser.add_argument("table", type=str, help="nftables table name")
     args = parser.parse_args()
 
     cfg_path = Path(args.config).resolve()
     out_root = Path(args.output).resolve()
+    table = args.table
 
     if not cfg_path.exists():
         parser.error(f"config file does not exist: {cfg_path}")
@@ -26,7 +28,7 @@ def main():
         parser.error(f"output path is not a directory: {out_root}")
 
     try:
-        convert(cfg_path, out_root)
+        convert(cfg_path, out_root, table)
     except RuntimeError as e:
         print(f"Error: {e}", file=sys.stderr)
         sys.exit(1)
